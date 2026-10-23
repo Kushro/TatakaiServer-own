@@ -40,6 +40,7 @@ export async function serveNodeRequest(handler, req, res, base) {
 export async function startNode(options = {}) {
   const root = options.root || process.env.DATA_DIR || './data';
   const databaseUrl = options.databaseUrl || process.env.DATABASE_URL;
+  if (process.env.REQUIRE_PERSISTENT_STORAGE === '1' && !databaseUrl) throw Error('Set DATABASE_URL to your Postgres database. This deployment has no persistent disk; temporary local files cannot preserve your server configuration.');
   if (databaseUrl && (!(options.secret || process.env.SERVER_SECRET) || !(options.bootstrapSecret || process.env.BOOTSTRAP_SECRET))) throw Error('Postgres deployments require persistent SERVER_SECRET and BOOTSTRAP_SECRET environment variables.');
   const storage = databaseUrl ? await (await import('./postgres-storage.mjs')).nodePostgresStorage(databaseUrl) : await nodeStorage(root);
   const secrets = await resolveNodeSecrets(root, { secret: options.secret || process.env.SERVER_SECRET,

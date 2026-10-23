@@ -7,6 +7,16 @@ import { resolveNodeSecrets } from '../src/node-secrets.mjs';
 import { vault } from '../src/security.mjs';
 import { startNode } from '../src/node.mjs';
 
+test('diskless deployments reject a missing database instead of using temporary SQLite', async () => {
+  const previousRequired = process.env.REQUIRE_PERSISTENT_STORAGE, previousDatabase = process.env.DATABASE_URL;
+  process.env.REQUIRE_PERSISTENT_STORAGE = '1'; delete process.env.DATABASE_URL;
+  try { await assert.rejects(startNode({ port: 0 }), /Set DATABASE_URL/); }
+  finally {
+    if (previousRequired === undefined) delete process.env.REQUIRE_PERSISTENT_STORAGE; else process.env.REQUIRE_PERSISTENT_STORAGE = previousRequired;
+    if (previousDatabase === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previousDatabase;
+  }
+});
+
 test('Node generates persistent random defaults, warns, and preserves encrypted data', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'tatakai-secrets-'));
   try {

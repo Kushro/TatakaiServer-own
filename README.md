@@ -16,8 +16,11 @@ Sources → Extension runtime → Built-in media proxy → Tatakai
 [![Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FSnozxyx%2FTatakaiServer)
 
 The buttons use [Snozxyx/TatakaiServer](https://github.com/Snozxyx/TatakaiServer)
-and open each provider's configuration flow. Follow the steps below and review storage,
-secrets and any paid resources before approving deployment in your own account.
+and open each provider's configuration flow. Render leaves plan selection to you;
+Cloudflare defaults to Workers + D1 without an R2 subscription. Templates cannot
+bypass provider account verification or billing rules. Users choose their storage
+and optional upgrades. Heroku still provisions a paid database; Vercel requires
+user-configured storage.
 
 ## Start locally
 
@@ -108,8 +111,8 @@ and [function limits](https://vercel.com/docs/functions/limitations).
 ### Cloudflare Workers
 
 Use the button with **Snozxyx/TatakaiServer**. Root `wrangler.jsonc` builds the
-server and declares `DB` (D1), `ARTIFACTS` (R2), static assets,
-required secrets and observability. Enable R2 and provide `SERVER_SECRET` and
+server and declares `DB` (D1), static assets, required secrets and observability.
+It does not provision R2 or select a paid Workers plan. Provide `SERVER_SECRET` and
 `BOOTSTRAP_SECRET` in the deployment flow. After resource provisioning, apply the
 D1 schema **from the repository root**, then open the Workers HTTPS URL:
 
@@ -117,10 +120,16 @@ D1 schema **from the repository root**, then open the Workers HTTPS URL:
 npx wrangler d1 migrations apply DB --remote --config wrangler.jsonc
 ```
 
-D1 stores configuration/logs; R2 stores artifacts/cache bodies. Serverless memory
-is not durable storage. HTTP addons and bounded scripts are supported; native
+D1 stores configuration, logs, extension artifacts and encrypted cache bodies.
+Artifacts are chunked below D1 row limits and written transactionally (up to
+4 MiB per artifact). Apply both SQL migrations. Serverless memory is not durable
+storage. HTTP addons and bounded scripts are supported; native
 Java/browser/torrent adapters are unavailable. For manual CLI deployment,
 set both secrets, provision the declared resources and apply migrations. See [Cloudflare's deployment flow](https://developers.cloudflare.com/workers/platform/deploy-buttons/).
+
+R2 is optional: use `wrangler.r2.jsonc` if you choose to enable it. Existing R2
+deployments should retain that binding/configuration until their artifacts are
+migrated; changing storage does not copy existing artifacts automatically.
 
 ### Heroku
 
@@ -138,12 +147,20 @@ and [Postgres settings](https://devcenter.heroku.com/articles/connecting-heroku-
 
 ### Render
 
-The button uses root `render.yaml`: a Docker web service, **paid persistent disk**
-at `/data`, generated secrets and health checks. Automatic upstream redeploys are
-disabled. SQLite/artifacts/cache survive restarts on the disk. Public URLs use
-`RENDER_EXTERNAL_URL`; set `PUBLIC_URL` for a custom domain. Retrieve
-`BOOTSTRAP_SECRET` from Environment for setup. Review the plan/disk before creating
-resources. See [Render's deploy-button flow](https://render.com/docs/deploy-to-render).
+The button uses root `render.yaml`: **no preset compute plan**, no paid disk or automatically
+created database, generated secrets and health checks. Supply a Postgres
+`DATABASE_URL` of your choice (for example, an external free-tier database).
+State, artifacts, logs and cache are stored there. The service refuses to fall
+back to temporary local files if the database URL is missing.
+
+Automatic upstream redeploys are disabled. Public URLs use `RENDER_EXTERNAL_URL`;
+set `PUBLIC_URL` for a custom domain. Select **Free** in Render's configuration
+if you want free compute; Render may otherwise preselect its own paid default.
+Retrieve `BOOTSTRAP_SECRET` from Environment
+for setup. Users handle provider account checks, billing prompts and optional
+upgrades themselves. Free services can sleep and cannot attach persistent disks;
+see [Render's free-service limits](https://render.com/docs/free) and
+[deployment-button flow](https://render.com/docs/deploy-to-render).
 
 ### Docker / self-hosted Node
 

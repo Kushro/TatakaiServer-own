@@ -6,10 +6,6 @@ services:
     dockerContext: .
     autoDeployTrigger: off
     healthCheckPath: /api/server/v1/health
-    disk:
-      name: tatakai-server-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: SERVER_SECRET
         generateValue: true
@@ -17,5 +13,7 @@ services:
         generateValue: true
       - key: HOST
         value: 0.0.0.0
-      - key: DATA_DIR
-        value: /data
+      - key: DATABASE_URL
+        sync: false
+      - key: REQUIRE_PERSISTENT_STORAGE
+        value: "1"
