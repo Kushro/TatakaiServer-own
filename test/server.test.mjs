@@ -102,6 +102,13 @@ test('pairing is one-use, password change revokes viewers, and origins apply to 
   assert.equal((await f.json('/sources', { token: f.viewer })).status, 401);
   const error = await f.request('/settings', { headers: { origin: 'https://tatakai.me' } }); assert.equal(error.headers.get('access-control-allow-origin'), 'https://tatakai.me');
   assert.equal((await f.request('/health', { headers: { origin: 'https://evil.example' } })).status, 403);
+  for (const origin of ['app://tatakai.me', 'capacitor://localhost', 'http://localhost', 'https://localhost']) {
+    const native = await f.request('/health', { headers: { origin } });
+    assert.equal(native.status, 200);
+    assert.equal(native.headers.get('access-control-allow-origin'), origin);
+    assert.equal((await f.request('/settings', { headers: { origin } })).status, 401);
+  }
+  assert.equal((await f.request('/health', { headers: { origin: 'null' } })).status, 403);
 });
 test('CAS mutations preserve concurrent edits', async () => {
   const store = memoryStore(); await store.mutate(() => ({ state: { count: 0 } }));

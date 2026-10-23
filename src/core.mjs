@@ -5,8 +5,9 @@ import { createMediaCache } from './cache.mjs';
 import { appendServerLog, logRoute } from './logs.mjs';
 
 export const API = '/api/server/v1';
+const nativeOrigins = ['app://tatakai.me', 'capacitor://localhost', 'http://localhost', 'https://localhost'];
 export const defaults = { name: 'Tatakai Server', languages: [], timeoutMs: 25000, concurrency: 4,
-  cacheSeconds: 300, mediaCacheMb: 32, mediaCacheSeconds: 300, proxyEnabled: true, allowedOrigins: ['https://tatakai.me', 'https://www.tatakai.me'] };
+  cacheSeconds: 300, mediaCacheMb: 32, mediaCacheSeconds: 300, proxyEnabled: true, allowedOrigins: ['https://tatakai.me', 'https://www.tatakai.me', ...nativeOrigins] };
 const redactExtension = row => ({ id: row.id, manifestId: row.manifest.id, ecosystem: row.ecosystem, name: row.manifest.name, version: row.manifest.version,
   enabled: row.enabled, priority: row.priority, languages: row.languages, kind: row.kind, updatedAt: row.updatedAt,
   hasPreferences: !!row.preferences, runtime: row.runtime || 'interpreter' });
@@ -24,7 +25,7 @@ function settings(input, current = defaults) {
   if (input.proxyEnabled !== undefined) { if (typeof input.proxyEnabled !== 'boolean') fail(400, 'invalid_setting'); out.proxyEnabled = input.proxyEnabled; }
   for (const key of ['languages', 'allowedOrigins']) if (input[key] !== undefined) {
     if (!Array.isArray(input[key]) || input[key].length > 50 || input[key].some(v => typeof v !== 'string' || v.length > 300)) fail(400, 'invalid_setting');
-    if (key === 'allowedOrigins' && input[key].some(v => { try { return new URL(v).origin !== v || !/^https?:/.test(v); } catch { return true; } })) fail(400, 'invalid_origin');
+    if (key === 'allowedOrigins' && input[key].some(v => { if (nativeOrigins.includes(v)) return false; try { return new URL(v).origin !== v || !/^https?:/.test(v); } catch { return true; } })) fail(400, 'invalid_origin');
     out[key] = [...new Set(input[key])];
   }
   return out;
