@@ -1,5 +1,7 @@
 # Tatakai Extension Server
 
+[![Server checks](https://github.com/Snozxyx/TatakaiServer/actions/workflows/ci.yml/badge.svg)](https://github.com/Snozxyx/TatakaiServer/actions/workflows/ci.yml)
+
 **Your sources, connected.** Install extensions once and use their anime, manga
 and novel sources from Tatakai web, desktop and mobile.
 
@@ -13,8 +15,8 @@ Sources → Extension runtime → Built-in media proxy → Tatakai
 [![Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FSnozxyx%2FTatakaiServer)
 [![Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FSnozxyx%2FTatakaiServer)
 
-The buttons open each provider's configuration flow. Publish these changes to
-GitHub before using them. Follow the platform steps below and review storage,
+The buttons use [Snozxyx/TatakaiServer](https://github.com/Snozxyx/TatakaiServer)
+and open each provider's configuration flow. Follow the steps below and review storage,
 secrets and any paid resources before approving deployment in your own account.
 
 ## Start locally

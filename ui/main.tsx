@@ -31,6 +31,7 @@ interface HealthInfo {
 
 interface ServerConfig {
   name: string;
+  logoUrl?: string;
   languages: string[];
   timeoutMs: number;
   concurrency: number;
