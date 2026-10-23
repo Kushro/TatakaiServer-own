@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/ui",
+  "functions": { "api/index.mjs": { "maxDuration": 60 } },
+  "rewrites": [{ "source": "/api/server/:path*", "destination": "/api/index?serverPath=:path*" }, { "source": "/((?!assets/).*)", "destination": "/index.html" }]
+}

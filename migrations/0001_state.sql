@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS server_state (
+  id INTEGER PRIMARY KEY,
+  version INTEGER NOT NULL,
+  data TEXT NOT NULL
+);

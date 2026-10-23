@@ -1,0 +1,14 @@
+{
+  "name": "Tatakai Extension Server",
+  "description": "Owner-managed source extensions, built-in media proxy, and a connection URL for Tatakai.",
+  "repository": "https://github.com/Snozxyx/TatakaiServer",
+  "stack": "container",
+  "env": {
+    "SERVER_SECRET": { "description": "Persistent encryption key. Keep it across redeployments.", "generator": "secret" },
+    "BOOTSTRAP_SECRET": { "description": "Initial owner setup key. Copy from Heroku Config Vars into setup.", "generator": "secret" },
+    "PUBLIC_URL": { "description": "Your public HTTPS app origin, e.g. https://YOUR-APP.herokuapp.com", "required": true },
+    "HOST": { "value": "0.0.0.0" },
+    "PGSSLMODE": { "description": "Heroku Postgres encrypted connection using its documented certificate mode.", "value": "no-verify" }
+  },
+  "addons": ["heroku-postgresql:essential-0"]
+}

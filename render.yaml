@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: tatakai-extension-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    autoDeployTrigger: off
+    healthCheckPath: /api/server/v1/health
+    disk:
+      name: tatakai-server-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SERVER_SECRET
+        generateValue: true
+      - key: BOOTSTRAP_SECRET
+        generateValue: true
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /data

@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tatakai-extension-server",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "dist/ui", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
+  "d1_databases": [{ "binding": "DB", "database_name": "tatakai-server", "migrations_dir": "migrations" }],
+  "r2_buckets": [{ "binding": "ARTIFACTS", "bucket_name": "tatakai-server-extensions" }],
+  "observability": { "enabled": true, "traces": { "enabled": true } },
+  "build": { "command": "npm run build" },
+  "secrets": { "required": ["SERVER_SECRET", "BOOTSTRAP_SECRET"] },
+  "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallthrough": true }]
+}
