@@ -303,3 +303,23 @@ test('public access needs no password while management still requires owner acce
   assert.equal((await request('/auth/password', { role: 'viewer', password: '' }, owner)).status, 200);
   assert.equal((await request('/sources')).status, 200);
 });
+
+test('hosted chapter discovery publishes early sources and retains later providers in one scan',async()=>{
+ const f=await fixture('node');
+ const code=`module.exports={getMangaChapters:async()=>[],streamMangaChapters:async(args,publish)=>{
+  await fetch('https://addon.example/catalog/series/reading.json');
+  publish([{number:1,sources:[{provider:'fast',chapterKey:'fast:1'}]}]);
+  await new Promise(resolve=>setTimeout(resolve,1500));
+  return [{number:1,sources:[{provider:'fast',chapterKey:'fast:1'}]},{number:2,sources:[{provider:'late',chapterKey:'late:2'}]}];
+ }}`;
+ const installed=await f.json('/extensions',{method:'POST',token:f.owner,data:{runtime:'node',manifest:{id:'reading',name:'Reading',version:'1',capabilities:['manga']},code}});
+ assert.equal(installed.status,200,JSON.stringify(installed));
+ const data={sourceId:installed.data.id,op:'chapters',args:{title:'Fixture'}};
+ const first=await f.json('/invoke',{method:'POST',token:f.viewer,data:{...data,progressive:true}});
+ assert.equal(first.status,200);assert.equal(first.data.partial,true);assert.ok(Array.isArray(first.data.chapters));
+ const complete=await f.json('/invoke',{method:'POST',token:f.viewer,data});
+ assert.equal(complete.data.length,2);
+ const cached=await f.json('/invoke',{method:'POST',token:f.viewer,data:{...data,progressive:true}});
+ assert.equal(cached.data.partial,false);assert.equal(cached.data.chapters[1].number,2);
+ assert.equal(f.calls.filter(call=>call.url.endsWith('/reading.json')).length,1);
+});

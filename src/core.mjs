@@ -96,16 +96,16 @@ export async function createServer({ store, artifacts, secret, bootstrapSecret, 
     }
     return extensions.invoke(row, op, args, signal, onProgress);
   }
-  async function invoke(row, op, args, signal, state) {
+  async function invoke(row, op, args, signal, state, progressive = false) {
     const seconds = state?.settings.cacheSeconds || 0;
     if (!seconds || !['browse', 'search', 'info', 'episodes', 'chapters', 'novelChapters', 'novelContent'].includes(op)) return invokeRaw(row, op, args, signal);
     const key = await digest(JSON.stringify([row.id, row.updatedAt, row.preferences, op, args]));
     const cached = state.cache?.[key];
-    if (cached?.expires > Date.now()) return encryption.open(cached.value);
+    if (cached?.expires > Date.now()) { const value = await encryption.open(cached.value); return progressive ? {chapters:value,partial:false} : value; }
     // Keep large chapter lists in a bounded memory cache instead of bloating
     // the SQLite state (which is also rewritten for logs and authentication).
-    return lookups.get(key, async () => {
-      const result = await invokeRaw(row, op, args, AbortSignal.timeout(state.settings.timeoutMs));
+    return lookups.get(key, async publish => {
+      const result = await invokeRaw(row, op, args, AbortSignal.timeout(state.settings.timeoutMs), publish);
       const serialized = JSON.stringify(result);
       if (serialized && serialized.length <= 16 * 1024) {
         const encrypted = await encryption.seal(result);
@@ -118,7 +118,7 @@ export async function createServer({ store, artifacts, secret, bootstrapSecret, 
         });
       }
       return result;
-    }, seconds * 1000, signal);
+    }, seconds * 1000, signal, progressive);
   }
   async function dispatch(request, state, url) {
     const path = url.pathname.slice(API.length), method = request.method;
@@ -256,7 +256,7 @@ export async function createServer({ store, artifacts, secret, bootstrapSecret, 
       if (!['browse', 'search', 'info', 'episodes', 'resolve', 'chapters', 'pages', 'novelChapters', 'novelContent'].includes(input.op)) fail(403, 'data_operation_required');
       const row = (await sourceRows(state)).find(item => item.id === extensionId); if (!row) fail(404, 'source_not_found');
       const signal = AbortSignal.any([request.signal, AbortSignal.timeout(state.settings.timeoutMs)]);
-      let result = await invoke(row, input.op, input.args || {}, signal, state);
+      let result = await invoke(row, input.op, input.args || {}, signal, state, input.progressive === true && ['chapters','novelChapters'].includes(input.op));
       if (input.op === 'pages' && Array.isArray(result)) result = result.map(page => typeof page === 'string' ? { imageUrl: page } : page);
       return proxify(result, base, session, state);
     }

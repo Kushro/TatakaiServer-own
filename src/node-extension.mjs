@@ -48,7 +48,7 @@ function execute({ code, probe, method, args = {}, preferences = {}, manifest = 
       if (settled) return;
       if (message.type === 'chunk') {
         if (Array.isArray(message.results)) {
-          const items = message.results.slice(0, Math.max(0, 500 - partial.length));
+          const items = message.results.slice(0, Math.max(0, (['getMangaChapters','getNovelChapters'].includes(method) ? 20000 : 500) - partial.length));
           partial.push(...items); if (items.length) onProgress?.(items);
         }
         return;

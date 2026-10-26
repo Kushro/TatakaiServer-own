@@ -14,17 +14,25 @@ export function createLookupCache({ maxBytes = 8 * 1024 * 1024, maxEntryBytes = 
   };
   return {
     clear() { generation++; entries.clear(); bytes = 0; },
-    async get(key, load, ttl, signal) {
+    async get(key, load, ttl, signal, progressive = false) {
       signal?.throwIfAborted();
       const now = Date.now();
       for (const [id, row] of entries) if (row.expires <= now) remove(id);
       const hit = entries.get(key);
-      if (hit) { entries.delete(key); entries.set(key, hit); return JSON.parse(hit.value); }
+      if (hit) { entries.delete(key); entries.set(key, hit); return progressive ? {chapters:JSON.parse(hit.value),partial:false} : JSON.parse(hit.value); }
       let flight = pending.get(key);
       if (!flight) {
         if (pending.size >= maxPending) throw Object.assign(Error('Lookup queue is full'), { status: 503, code: 'lookup_queue_full' });
         const version = generation;
-        flight = Promise.resolve().then(load).then(result => {
+        const record = { promise: null, chunks: [], size: 0 };
+        record.promise = Promise.resolve().then(() => load(items => {
+          if (!Array.isArray(items)) return;
+          for (const item of items) {
+            const size = new TextEncoder().encode(JSON.stringify(item)).byteLength;
+            if (record.size + size > maxEntryBytes || record.chunks.length >= 20000) break;
+            record.chunks.push(item); record.size += size;
+          }
+        })).then(result => {
           const value = JSON.stringify(result), size = value ? new TextEncoder().encode(value).byteLength : 0;
           // Progressive snapshots must not freeze an incomplete provider list.
           if (version === generation && size && size <= maxEntryBytes && size <= maxBytes && !result?.partial && result?.complete !== false) {
@@ -34,11 +42,21 @@ export function createLookupCache({ maxBytes = 8 * 1024 * 1024, maxEntryBytes = 
           }
           return result;
         }).finally(() => pending.delete(key));
+        flight = record;
         pending.set(key, flight);
+      }
+      if (progressive) {
+        let timer;
+        try {
+          return await wait(Promise.race([
+            flight.promise.then(chapters => ({ chapters, partial: false })),
+            new Promise(resolve => { timer = setTimeout(() => resolve({ chapters: [...flight.chunks], partial: true }), 500); }),
+          ]), signal);
+        } finally { clearTimeout(timer); }
       }
       // Each client owns its cancellation. A cancelled waiter cannot cancel
       // another client's shared lookup; load has its own bounded deadline.
-      return wait(flight, signal);
+      return wait(flight.promise, signal);
     },
   };
 }

@@ -55,6 +55,9 @@ console.log = console.warn = console.error = console.debug = () => {};
   let value;
   if (method === 'single' && typeof provider.streamAll === 'function') value = await provider.streamAll(args, chunk);
   else if (method === 'single' && typeof provider.sourcesAll === 'function') value = await provider.sourcesAll(args, chunk);
+  else if (['getMangaChapters','getNovelChapters'].includes(method) && typeof provider[method === 'getMangaChapters' ? 'streamMangaChapters' : 'streamNovelChapters'] === 'function') {
+    value = await provider[method === 'getMangaChapters' ? 'streamMangaChapters' : 'streamNovelChapters'](args, results => parentPort.postMessage({type:'chunk',results}));
+  }
   else {
     if (typeof provider[method] !== 'function') throw Error('Unsupported extension method: ' + method);
     value = await provider[method](args);

@@ -32,3 +32,13 @@ test('cancelled clients do not abort other clients and cache storage is bounded'
   await cache.get('other',async()=>['other'],300000);await cache.get('third',async()=>['third'],300000);
   assert.deepEqual(await cache.get('shared',async()=>['reloaded'],300000),['reloaded']);
 });
+
+test('progressive discovery serves early chapters, joins one scan, and caches its complete result', async()=>{
+ const cache=createLookupCache();let finish,calls=0;
+ const load=async publish=>{calls++;publish([{number:1}]);await new Promise(resolve=>{finish=resolve;});return [{number:1},{number:2}];};
+ const first=await cache.get('book',load,300000,undefined,true);
+ assert.deepEqual(first,{chapters:[{number:1}],partial:true});
+ finish();await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(await cache.get('book',load,300000,undefined,true),{chapters:[{number:1},{number:2}],partial:false});
+ assert.deepEqual(await cache.get('book',load,300000),[{number:1},{number:2}]);assert.equal(calls,1);
+});
