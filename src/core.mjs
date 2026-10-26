@@ -2,6 +2,7 @@ import { vault, digest, equal, passwordHash, verifyPassword, random, fail, creat
 import { createExtensions, sourceDescriptor, families, capability } from './extensions.mjs';
 import { createProxy } from './proxy.mjs';
 import { createMediaCache } from './cache.mjs';
+import { createLookupCache } from './lookup-cache.mjs';
 import { appendServerLog, logRoute } from './logs.mjs';
 
 export const API = '/api/server/v1';
@@ -34,6 +35,7 @@ export async function createServer({ store, artifacts, secret, bootstrapSecret, 
   const startedAt = Date.now(), startedClock = performance.now();
   const encryption = await vault(secret);
   const extensions = createExtensions({ network, artifacts, interpreter, nodeInterpreter, platform, hosts, vault: encryption });
+  const lookups = createLookupCache();
   const mediaCache = createMediaCache({ store, artifacts, vault: encryption });
   const proxy = createProxy({ vault: encryption, network, platform, cache: mediaCache });
   const sourceRows = async state => [...state.extensions, ...(hosts.catalog ? await hosts.catalog.list() : [])];
@@ -100,18 +102,23 @@ export async function createServer({ store, artifacts, secret, bootstrapSecret, 
     const key = await digest(JSON.stringify([row.id, row.updatedAt, row.preferences, op, args]));
     const cached = state.cache?.[key];
     if (cached?.expires > Date.now()) return encryption.open(cached.value);
-    const result = await invokeRaw(row, op, args, signal);
-    const serialized = JSON.stringify(result);
-    if (serialized && serialized.length <= 16 * 1024) {
-      const encrypted = await encryption.seal(result);
-      await edit(current => {
-        current.cache ||= {};
-        for (const [id, item] of Object.entries(current.cache)) if (item.expires < Date.now()) delete current.cache[id];
-        if (Object.keys(current.cache).length >= 16) delete current.cache[Object.keys(current.cache)[0]];
-        current.cache[key] = { value: encrypted, expires: Date.now() + seconds * 1000 };
-      });
-    }
-    return result;
+    // Keep large chapter lists in a bounded memory cache instead of bloating
+    // the SQLite state (which is also rewritten for logs and authentication).
+    return lookups.get(key, async () => {
+      const result = await invokeRaw(row, op, args, AbortSignal.timeout(state.settings.timeoutMs));
+      const serialized = JSON.stringify(result);
+      if (serialized && serialized.length <= 16 * 1024) {
+        const encrypted = await encryption.seal(result);
+        await edit(current => {
+          current.cache ||= {};
+          for (const [id, item] of Object.entries(current.cache)) if (item.expires < Date.now()) delete current.cache[id];
+          if (Object.keys(current.cache).length >= 16) delete current.cache[Object.keys(current.cache)[0]];
+          const empty = Array.isArray(result) ? !result.length : Array.isArray(result?.chapters) && !result.chapters.length;
+          current.cache[key] = { value: encrypted, expires: Date.now() + Math.min(seconds * 1000, empty ? 30000 : seconds * 1000) };
+        });
+      }
+      return result;
+    }, seconds * 1000, signal);
   }
   async function dispatch(request, state, url) {
     const path = url.pathname.slice(API.length), method = request.method;
@@ -166,7 +173,7 @@ export async function createServer({ store, artifacts, secret, bootstrapSecret, 
       mediaEntries: Object.values(state.mediaCache || {}).filter(item => item.expires > Date.now()).length,
       mediaBytes: Object.values(state.mediaCache || {}).filter(item => item.expires > Date.now()).reduce((sum, item) => sum + item.bytes, 0),
       maxMediaBytes: (state.settings.mediaCacheMb || 0) * 1024 * 1024 };
-    if (path === '/cache' && method === 'DELETE') { await mediaCache.clear(); return { success: true }; }
+    if (path === '/cache' && method === 'DELETE') { lookups.clear(); await mediaCache.clear(); return { success: true }; }
     if (path === '/native' && method === 'POST') {
       if (!hosts.catalog?.manage) fail(422, 'unsupported_runtime', 'Native extension management requires the optional Node runtime or desktop');
       return hosts.catalog.manage(await body(request), request.signal);
