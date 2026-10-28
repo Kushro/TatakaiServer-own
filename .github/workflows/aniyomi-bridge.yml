@@ -100,21 +100,16 @@ jobs:
           ls -l -- "$target"
           rm -f -- "$target"
 
-      - name: Build desktop JAR
+      # Single aggregate invocation, like upstream CI: aniyomiCommon drops its
+      # compileOnly desktop-lib dependency whenever a requested task name
+      # contains "android", which breaks a direct :aniyomiAndroid:buildPlugin.
+      # Only the two Aniyomi outputs are collected below.
+      - name: Build plugins (desktop JAR + Android APK)
         working-directory: bridge/runtimeManager
         run: |
           sh ./gradlew --no-daemon --no-build-cache --console=plain --stacktrace \
             -Porg.gradle.java.installations.auto-download=false \
-            :aniyomi:aniyomiDesktop:buildPlugin
-
-      # Separate invocation: aniyomiCommon/build.gradle.kts inspects the
-      # requested task names for "android" to decide its dependency graph.
-      - name: Build Android APK
-        working-directory: bridge/runtimeManager
-        run: |
-          sh ./gradlew --no-daemon --no-build-cache --console=plain --stacktrace \
-            -Porg.gradle.java.installations.auto-download=false \
-            :aniyomi:aniyomiAndroid:buildPlugin
+            buildAllPlugins
 
       - name: Collect assets and checksums
         env:
@@ -148,7 +143,7 @@ jobs:
               bridge: {repository: $repo, commit: $commit, licenseSha256: $licenseSha256},
               build: {
                 runUrl: $runUrl, runId: $runId, workflowSha: $workflowSha, releaseTag: $tag, builtAt: $builtAt,
-                gradleTasks: [":aniyomi:aniyomiDesktop:buildPlugin", ":aniyomi:aniyomiAndroid:buildPlugin"],
+                gradleTasks: ["buildAllPlugins"],
                 notes: "Built from source; Android APK is the unsigned release output (no signingConfig upstream)."
               },
               desktop: {name: $dName, bytes: $dBytes, sha256: $dSha},
